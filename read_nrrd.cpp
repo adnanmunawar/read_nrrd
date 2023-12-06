@@ -20,6 +20,7 @@
 #include <boost/iostreams/copy.hpp>
 
 #include <opencv2/opencv.hpp>
+// #include <opencv4/opencv2/opencv.hpp>
 
 
 std :: regex value_regex = std :: regex (R"(\s*:\s*)");
@@ -300,6 +301,12 @@ int main (int argc, char ** argv)
   auto slices = read_nrrd(filename, true);
 
   cv :: namedWindow("Test", cv :: WINDOW_NORMAL);
+
+  std::cerr << "INFO! Number of Slices " << slices.size() << std::endl;
+  for (std :: size_t i = 0; i < slices.size(); ++i){
+    std::cerr << "\t INFO! Slice " << i << ": Number of Dims: " << slices[i].size() << std::endl;
+  }
+  
 
   for (std :: size_t i = 0; i < slices.size(); ++i)
   {
