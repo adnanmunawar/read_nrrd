@@ -6,7 +6,8 @@ def main(num_slices, w, h):
             for k in range(h):
                 idx1 = j * h + k
                 idx2 = (k * w + j) * num_slices + i
-                print("\t ", ctr, ") i:", i, ", j:", j, ", k:", k, " --> ", "idx1:", idx1, ", idx2:", idx2)
+                idx3 = k + j * (h) + i * (w * h)
+                print("\t ", ctr, ") i:", i, ", j:", j, ", k:", k, " --> ", "idx1:", idx1, ", idx2:", idx2, ", idx3:", idx3)
                 ctr = ctr + 1
         print("--")    
 

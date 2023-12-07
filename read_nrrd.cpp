@@ -29,6 +29,36 @@ std :: regex vector_regex = std :: regex (R"(\s* \s*)");
 
 std :: array < std :: string, 4 > NRRD_REQUIRED_FIELDS {"dimension", "type", "encoding", "sizes"};
 
+struct DataSize{
+public:
+    DataSize(){
+        m_dimensions = 0;
+        m_segments = 0;
+        m_slices = 0;
+        m_width = 0;
+        m_height = 0;
+    }
+    DataSize(unsigned int dimensions, unsigned int segments, unsigned int slices, unsigned int width, unsigned int height){
+        m_dimensions = dimensions;
+        m_segments = segments;
+        m_slices = slices;
+        m_width = width;
+        m_height = height;
+    }
+    void set(unsigned int dimensions, unsigned int segments, unsigned int slices, unsigned int width, unsigned int height){
+        m_dimensions = dimensions;
+        m_segments = segments;
+        m_slices = slices;
+        m_width = width;
+        m_height = height;
+    }
+    unsigned int m_dimensions;
+    unsigned int m_width;
+    unsigned int m_height;
+    unsigned int m_slices;
+    unsigned int m_segments;
+};
+
 
 enum{  _uchar = 0, _int16, _float
   }; // dtype;
@@ -117,9 +147,9 @@ void check_header (std :: unordered_map < std :: string, std :: string > & heade
 
 
 template < typename dtype >
-std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const int & num_slices, const int & w, const int & h, const int & compression)
+std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & data_size, const int & compression)
 {
-  const int buffer_size = num_slices * w * h;
+  const int buffer_size = data_size.m_slices * data_size.m_width * data_size.m_height;
 
   std :: vector < dtype > data(buffer_size);
 
@@ -176,18 +206,19 @@ std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const int & num_s
     break;
   }
 
-  std :: vector < cv :: Mat > slices (num_slices);
+  std :: vector < cv :: Mat > slices (data_size.m_slices);
 
-  for (int i = 0; i < num_slices; ++i)
+  for (int i = 0; i < data_size.m_slices; ++i)
   {
-    slices[i] = cv :: Mat(w, h, CV_32SC1);
+    slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC1);
     int * img_data = (int*)(slices[i].data);
 
-    for (int j = 0; j < w; ++j)
-      for (int k = 0; k < h; ++k)
+    for (int j = 0; j < data_size.m_width; ++j)
+      for (int k = 0; k < data_size.m_height; ++k)
       {
-        const int idx1 = j * h + k;
-        const int idx2 = (k * w + j) * num_slices + i;
+        const int idx1 = j * data_size.m_height + k;
+        const int idx2 = (k * data_size.m_width + j) * data_size.m_slices + i;
+//        const int idx2 = (i * data_size.m_width * data_size.m_height) + (j * data_size.m_height) + k;
         img_data[idx1] = data[idx2];
       }
   }
@@ -256,28 +287,32 @@ std :: vector < cv :: Mat > read_nrrd (const std :: string & filename, const boo
   auto sizes = split(header.at("sizes"), vector_regex, [](const std :: string & x){return std :: stol(x);});
   long total_size = std :: accumulate(sizes.begin(), sizes.end(), 1, [](const auto & res, const auto & x){return res * x;});
 
-  std :: size_t num_slices = sizes[0];
-  std :: size_t w = sizes[1];
-  std :: size_t h = sizes[2];
+  DataSize data_size;
+  if (sizes.size() == 3){
+      data_size.set(3, 1, sizes[0], sizes[1], sizes[2]);
+  }
+  else if (sizes.size() == 4){
+      data_size.set(4, sizes[0], sizes[1], sizes[2], sizes[3]);
+  }
 
   std :: size_t compression = compress.at(header.at("encoding"));
 
-  std :: vector < cv :: Mat > slices (num_slices);
+  std :: vector < cv :: Mat > slices (data_size.m_slices);
 
   const std :: string data_type = header.at("type");
 
   switch (dtype.at(data_type))
   {
     case _uchar:
-      slices = read_slices < char >(is, num_slices, w, h, compression);
+      slices = read_slices < char >(is, data_size, compression);
     break;
 
     case _int16:
-      slices = read_slices < short >(is, num_slices, w, h, compression);
+      slices = read_slices < short >(is, data_size, compression);
     break;
 
     case _float:
-      slices = read_slices < float >(is, num_slices, w, h, compression);
+      slices = read_slices < float >(is, data_size, compression);
     break;
 
     default:
