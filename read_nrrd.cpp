@@ -149,7 +149,7 @@ void check_header (std :: unordered_map < std :: string, std :: string > & heade
 template < typename dtype >
 std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & data_size, const int & compression)
 {
-  const int buffer_size = data_size.m_slices * data_size.m_width * data_size.m_height;
+  const int buffer_size = data_size.m_segments * data_size.m_slices * data_size.m_width * data_size.m_height;
 
   std :: vector < dtype > data(buffer_size);
 
@@ -208,18 +208,23 @@ std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & 
 
   std :: vector < cv :: Mat > slices (data_size.m_slices);
 
-  for (int i = 0; i < data_size.m_slices; ++i)
-  {
-    slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC1);
-    int * img_data = (int*)(slices[i].data);
+  for (int i = 0; i < data_size.m_slices; ++i){
+      slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC1);
+  }
 
-    for (int j = 0; j < data_size.m_width; ++j)
-      for (int k = 0; k < data_size.m_height; ++k)
-      {
-        const int idx1 = j * data_size.m_height + k;
-        const int idx2 = (k * data_size.m_width + j) * data_size.m_slices + i;
-//        const int idx2 = (i * data_size.m_width * data_size.m_height) + (j * data_size.m_height) + k;
-        img_data[idx1] = data[idx2];
+  for (int s = 0 ; s < data_size.m_segments; s++){
+      for (int i = 0; i < data_size.m_slices; ++i){
+          int * img_data = (int*)(slices[i].data);
+          for (int j = 0; j < data_size.m_width; ++j){
+              for (int k = 0; k < data_size.m_height; ++k){
+                  const int idx1 = j * data_size.m_height + k;
+                  const int idx2 = k * data_size.m_width * data_size.m_slices * data_size.m_segments + j * data_size.m_slices * data_size.m_segments + i * data_size.m_segments + s;
+//                  if (data[idx2] == 11){
+//                      printf("Here bro %lu %lu %lu %lu\n", s, i, j, k);
+//                  }
+                  img_data[idx1] += data[idx2];
+              }
+          }
       }
   }
 
