@@ -13,6 +13,7 @@
 #include <memory>        // std :: unique_ptr
 #include <string>        // std :: stoi, std :: stof
 #include <array>         // std :: array
+#include <map>
 
 #include <boost/iostreams/filtering_stream.hpp>
 #include <boost/iostreams/filter/gzip.hpp>
@@ -22,10 +23,12 @@
 #include <opencv2/opencv.hpp>
 // #include <opencv4/opencv2/opencv.hpp>
 
+using namespace std;
 
 std :: regex value_regex = std :: regex (R"(\s*:\s*)");
 std :: regex array_regex = std :: regex (R"(\s*,\s*)");
 std :: regex vector_regex = std :: regex (R"(\s* \s*)");
+std :: regex vector2_regex = std :: regex (R"(([+-]?[0-9]+(\.[0-9]*)?)|([+-]?\.[0-9]*))");
 
 std :: array < std :: string, 4 > NRRD_REQUIRED_FIELDS {"dimension", "type", "encoding", "sizes"};
 
@@ -59,6 +62,29 @@ public:
     unsigned int m_segments;
 };
 
+class SegmentInfo{
+public:
+    SegmentInfo(int labelValue, int layer, vector<int> extent, vector<float> color, string name){
+        m_labelValue = labelValue;
+        m_layer = layer;
+        m_color = color;
+        m_name = name;
+        for (int i = 0 ; i < extent.size(); i++){
+            if (i%2 == 0) m_lowerExtent.push_back(extent[i]);
+            else m_upperExtent.push_back(extent[i]);
+        }
+    }
+
+    int m_labelValue;
+    int m_layer;
+    vector<int> m_lowerExtent;
+    vector<int> m_upperExtent;
+    vector<float> m_color;
+    string m_name;
+};
+
+
+map<int, SegmentInfo*> g_segmentInfos;
 
 enum{  _uchar = 0, _int16, _float
   }; // dtype;
@@ -86,11 +112,11 @@ const std :: unordered_map < std :: string, int > compress { {"gzip", _gzip},
 
 template < class lambda = std :: function < std :: string (std :: string) > >
 std :: vector < typename std :: result_of < lambda(std :: string) > :: type >
-split (const std :: string & txt, const std :: regex & rgx, lambda func = [](std :: string s) -> std :: string { return s; })
+split (const std :: string & txt, const std :: regex & rgx, int match_flag = -1, lambda func = [](std :: string s) -> std :: string { return s; })
 {
   using type = typename std :: result_of < decltype(func)(std :: string) > :: type;
 
-  std :: sregex_token_iterator beg(txt.begin(), txt.end(), rgx, -1);
+  std :: sregex_token_iterator beg(txt.begin(), txt.end(), rgx, match_flag);
   std :: sregex_token_iterator end;
 
   std :: size_t ntoken = std :: distance(beg, end);
@@ -289,7 +315,7 @@ std :: vector < cv :: Mat > read_nrrd (const std :: string & filename, const boo
       std :: cout << "  \"" << key << "\" : " << val << std :: endl;
   }
 
-  auto sizes = split(header.at("sizes"), vector_regex, [](const std :: string & x){return std :: stol(x);});
+  auto sizes = split(header.at("sizes"), vector_regex, -1, [](const std :: string & x){return std :: stol(x);});
   long total_size = std :: accumulate(sizes.begin(), sizes.end(), 1, [](const auto & res, const auto & x){return res * x;});
 
   DataSize data_size;
@@ -298,6 +324,19 @@ std :: vector < cv :: Mat > read_nrrd (const std :: string & filename, const boo
   }
   else if (sizes.size() == 4){
       data_size.set(4, sizes[0], sizes[1], sizes[2], sizes[3]);
+  }
+
+  for (auto hIt = header.begin() ; hIt != header.end() ; ++hIt){
+      std::string header_key = hIt->first;
+      if(header_key.find("_ID") != std::string::npos ){
+          std::string prefix = header_key.substr(0, header_key.find("_ID"));
+          auto segment_color = split(header.at(prefix + "_Color"), vector2_regex, 0, [](const std :: string & x){return std :: stof(x);});
+          auto segment_extent = split(header.at(prefix + "_Extent"), vector2_regex, 0, [](const std :: string & x){return std :: stoi(x);});
+          auto segment_label = split(header.at(prefix + "_LabelValue"), vector2_regex, 0, [](const std :: string & x){return std :: stoi(x);});
+          auto segment_layer = split(header.at(prefix + "_Layer"), vector2_regex, 0, [](const std :: string & x){return std :: stoi(x);});
+          auto segment_name = header.at(prefix + "_Name");
+          g_segmentInfos[segment_label[0]] = new SegmentInfo(segment_label[0], segment_layer[0], segment_extent, segment_color, segment_name);
+      }
   }
 
   std :: size_t compression = compress.at(header.at("encoding"));
