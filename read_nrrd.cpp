@@ -84,6 +84,22 @@ public:
 };
 
 
+class HeaderInfo{
+public:
+    HeaderInfo(){
+
+    }
+
+public:
+    string m_name;
+    vector<float> m_sizes;
+    vector<float> m_spaceOrigin;
+    vector<float> m_spaceDirections;
+
+    vector<SegmentInfo> m_segmentInfos;
+};
+
+
 map<int, SegmentInfo*> g_segmentInfos;
 
 enum{  _uchar = 0, _int16, _float
@@ -235,7 +251,7 @@ std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & 
   std :: vector < cv :: Mat > slices (data_size.m_slices);
 
   for (int i = 0; i < data_size.m_slices; ++i){
-      slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC1);
+      slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC3);
   }
 
   for (int s = 0 ; s < data_size.m_segments; s++){
@@ -245,10 +261,15 @@ std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & 
               for (int k = 0; k < data_size.m_height; ++k){
                   const int idx1 = j * data_size.m_height + k;
                   const int idx2 = k * data_size.m_width * data_size.m_slices * data_size.m_segments + j * data_size.m_slices * data_size.m_segments + i * data_size.m_segments + s;
-//                  if (data[idx2] == 11){
-//                      printf("Here bro %lu %lu %lu %lu\n", s, i, j, k);
-//                  }
-                  img_data[idx1] += data[idx2];
+                  int label_val = data[idx2];
+                  auto it = g_segmentInfos.find(label_val);
+                  if (it != g_segmentInfos.end()){
+                      auto rgb = it->second->m_color;
+                      img_data[3 * idx1 + 0] += int(255.0 *rgb[2]);
+                      img_data[3 * idx1 + 1] += int(255.0 *rgb[1]);
+                      img_data[3 * idx1 + 2] += int(255.0 *rgb[0]);
+                  }
+//                  img_data[idx1] += data[idx2];
               }
           }
       }
@@ -383,7 +404,7 @@ int main (int argc, char ** argv)
 
   std::cerr << "INFO! Number of Slices " << slices.size() << std::endl;
   for (std :: size_t i = 0; i < slices.size(); ++i){
-    std::cerr << "\t INFO! Slice " << i << ": Number of Dims: " << slices[i].size() << std::endl;
+//    std::cerr << "\t INFO! Slice " << i << ": Number of Dims: " << slices[i].size() << std::endl;
   }
   
 
@@ -394,7 +415,8 @@ int main (int argc, char ** argv)
     // to visualize a prettier image you should normalize it between [0, 255]
     cv :: normalize(s, s, 0, 255, cv :: NORM_MINMAX);
     // to visualize the images you must convert it into uchar type
-    s.convertTo(s, CV_8UC1);
+    s.convertTo(s, CV_8UC3);
+//    cv::cvtColor(s, s, cv::COLOR_GRAY2RGB);
 
     cv :: imshow("Test", s);
     cv :: waitKey(10);
