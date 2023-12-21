@@ -250,27 +250,41 @@ std :: vector < cv :: Mat > read_slices (std :: ifstream & is, const DataSize & 
 
   std :: vector < cv :: Mat > slices (data_size.m_slices);
 
+
+//  for (int i = 0; i < data_size.m_slices; ++i){
+//      slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC3);
+//  }
+
+//  for (int s = 0 ; s < data_size.m_segments; s++){
+//      for (int i = 0; i < data_size.m_slices; ++i){
+//          int * img_data = (int*)(slices[i].data);
+//          for (int j = 0; j < data_size.m_width; ++j){
+//              for (int k = 0; k < data_size.m_height; ++k){
+//                  const int idx1 = j * data_size.m_height + k;
+//                  const int idx2 = k * data_size.m_width * data_size.m_slices * data_size.m_segments + j * data_size.m_slices * data_size.m_segments + i * data_size.m_segments + s;
+//                  int label_val = data[idx2];
+//                  auto it = g_segmentInfos.find(label_val);
+//                  if (it != g_segmentInfos.end()){
+//                      auto rgb = it->second->m_color;
+//                      img_data[3 * idx1 + 0] += (1000 *rgb[2]);
+//                      img_data[3 * idx1 + 1] += (1000 *rgb[1]);
+//                      img_data[3 * idx1 + 2] += (1000 *rgb[0]);
+//                  }
+//              }
+//          }
+//      }
+//  }
+
   for (int i = 0; i < data_size.m_slices; ++i){
-      slices[i] = cv :: Mat(data_size.m_width, data_size.m_height, CV_32SC3);
+      slices[i] = cv :: Mat(data_size.m_height, data_size.m_width, CV_32SC1);
   }
 
-  for (int s = 0 ; s < data_size.m_segments; s++){
-      for (int i = 0; i < data_size.m_slices; ++i){
-          int * img_data = (int*)(slices[i].data);
-          for (int j = 0; j < data_size.m_width; ++j){
-              for (int k = 0; k < data_size.m_height; ++k){
-                  const int idx1 = j * data_size.m_height + k;
-                  const int idx2 = k * data_size.m_width * data_size.m_slices * data_size.m_segments + j * data_size.m_slices * data_size.m_segments + i * data_size.m_segments + s;
-                  int label_val = data[idx2];
-                  auto it = g_segmentInfos.find(label_val);
-                  if (it != g_segmentInfos.end()){
-                      auto rgb = it->second->m_color;
-                      img_data[3 * idx1 + 0] += int(255.0 *rgb[2]);
-                      img_data[3 * idx1 + 1] += int(255.0 *rgb[1]);
-                      img_data[3 * idx1 + 2] += int(255.0 *rgb[0]);
-                  }
-//                  img_data[idx1] += data[idx2];
-              }
+  for (int i = 0; i < data_size.m_slices; ++i){
+      for (int j = 0; j < data_size.m_width; ++j){
+          for (int k = 0; k < data_size.m_height; ++k){
+              const int idx1 = k * data_size.m_width + j;
+              const int idx2 = k * data_size.m_width * data_size.m_slices + j * data_size.m_slices + i;
+              ((int*)(slices[i].data))[idx1] = data[idx2];
           }
       }
   }
@@ -392,6 +406,28 @@ std :: vector < cv :: Mat > read_nrrd (const std :: string & filename, const boo
   return slices;
 }
 
+int viewSlice = 0;
+bool refreshView = true;
+
+void mouse_callback(int  event, int  x, int  y, int  flag, void *param)
+{
+    if (event == cv::EVENT_MOUSEHWHEEL) {
+
+//        cerr << "\t Mouse Wheel "<< endl;
+//        cout << event << " " << flag << " | SCROLL (" << x << ", " << y << ")" << endl;
+        if (flag > 0){
+            viewSlice--;
+        }
+        else{
+            viewSlice++;
+        }
+        viewSlice = clamp(viewSlice, 0, 511);
+        refreshView = true;
+    }
+
+//    cerr << "MOUSE CB: SHOW VIEW SLICE: " << viewSlice << " " << flag << " " << event << endl;
+}
+
 
 int main (int argc, char ** argv)
 {
@@ -406,21 +442,48 @@ int main (int argc, char ** argv)
   for (std :: size_t i = 0; i < slices.size(); ++i){
 //    std::cerr << "\t INFO! Slice " << i << ": Number of Dims: " << slices[i].size() << std::endl;
   }
+
+  cv::namedWindow(filename);
+  cv::setMouseCallback(filename, mouse_callback);
   
 
-  for (std :: size_t i = 0; i < slices.size(); ++i)
+//  for (std :: size_t i = 0; i < slices.size(); ++i)
+//  {
+//    auto s = slices[i];
+//    cv::Mat d;
+
+//    // to visualize a prettier image you should normalize it between [0, 255]
+//    cv :: normalize(s, d, 0, 255, cv :: NORM_MINMAX);
+//    // to visualize the images you must convert it into uchar type
+//    d.convertTo(d, CV_8UC1);
+//    cv::flip(d, d, 0);
+////    cv::cvtColor(s, s, cv::COLOR_GRAY2RGB);
+
+//    cv :: imshow(filename, d);
+//    cv :: waitKey(10);
+//  }
+
+  char exit_key_press = 0;
+  while (exit_key_press != 'q') // or key != ESC
   {
-    auto s = slices[i];
+      if (refreshView){
+          cerr << "INFO! SHOWING SLICE NUMBER " << viewSlice << endl;
+          auto s = slices[viewSlice];
+          cv::Mat d;
 
-    // to visualize a prettier image you should normalize it between [0, 255]
-    cv :: normalize(s, s, 0, 255, cv :: NORM_MINMAX);
-    // to visualize the images you must convert it into uchar type
-    s.convertTo(s, CV_8UC3);
-//    cv::cvtColor(s, s, cv::COLOR_GRAY2RGB);
+          // to visualize a prettier image you should normalize it between [0, 255]
+          cv :: normalize(s, d, 0, 255, cv :: NORM_MINMAX);
+          // to visualize the images you must convert it into uchar type
+          d.convertTo(d, CV_8UC1);
+          cv::flip(d, d, 0);
+      //    cv::cvtColor(s, s, cv::COLOR_GRAY2RGB);
 
-    cv :: imshow("Test", s);
-    cv :: waitKey(10);
+          cv :: imshow(filename, d);
+          refreshView = false;
+      }
+     exit_key_press = cv::waitKey(10);
   }
+
 
   cv :: destroyWindow("Test");
 
