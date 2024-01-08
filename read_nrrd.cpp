@@ -408,9 +408,11 @@ std :: vector < cv :: Mat > read_nrrd (const std :: string & filename, const boo
 
 int viewSlice = 0;
 bool refreshView = true;
+int g_x, g_y;
 
 void mouse_callback(int  event, int  x, int  y, int  flag, void *param)
 {
+
     if (event == cv::EVENT_MOUSEHWHEEL) {
 
 //        cerr << "\t Mouse Wheel "<< endl;
@@ -422,6 +424,11 @@ void mouse_callback(int  event, int  x, int  y, int  flag, void *param)
             viewSlice++;
         }
         viewSlice = clamp(viewSlice, 0, 511);
+        refreshView = true;
+    }
+    else if (event == cv::EVENT_MOUSEMOVE){
+        g_x = x;
+        g_y = y;
         refreshView = true;
     }
 
@@ -477,7 +484,12 @@ int main (int argc, char ** argv)
           d.convertTo(d, CV_8UC1);
           cv::flip(d, d, 0);
       //    cv::cvtColor(s, s, cv::COLOR_GRAY2RGB);
-
+          int x,y;
+          x = g_x;
+          y = s.size().height - g_y;
+          auto intensity = s.at<int>(cv::Point(x, y));
+          auto text = std::to_string(viewSlice) + ", " + std::to_string(x) + ", " + std::to_string(y) + " = " + std::to_string(intensity);
+          cv::putText(d, text, cv::Point(10, 20), cv::FONT_HERSHEY_COMPLEX, 0.5, cv::Scalar(255, 0, 0));
           cv :: imshow(filename, d);
           refreshView = false;
       }
